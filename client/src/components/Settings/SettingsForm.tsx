@@ -4,6 +4,7 @@ import { AnalyserForm } from './AnalyserForm';
 import { AppForm } from './AppForm';
 import { AppVersion } from './AppVersion';
 import { DataForm } from './DataForm';
+import { McpForm } from './McpForm';
 import { WorkForm } from './WorkForm';
 
 export const SettingsForm = () => {
@@ -12,6 +13,7 @@ export const SettingsForm = () => {
             <WorkForm />
             <DataForm />
             <AppForm />
+            <McpForm />
             <AnalyserForm />
 
             <Divider my={2} />

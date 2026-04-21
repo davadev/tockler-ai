@@ -9,6 +9,7 @@ import { initBackgroundJob } from './background/initBackgroundJob';
 import { dbClient } from './drizzle/dbClient';
 import { OrderByKey } from './drizzle/query.utils';
 import { TrackItem } from './drizzle/schema';
+import { getMcpIntegrationStatus, setClaudeCodeMcp, setOpencodeMcp } from './mcp/mcp-config';
 import { setupMainHandler } from './utils/setupMainHandler';
 
 const settingsActions = {
@@ -122,5 +123,19 @@ const trackItemActions = {
     },
 };
 
+const mcpActions = {
+    getMcpIntegrationStatus: async () => {
+        return getMcpIntegrationStatus();
+    },
+    setMcpForOpencode: async (payload: { enabled: boolean }) => {
+        await setOpencodeMcp(payload.enabled);
+        return getMcpIntegrationStatus();
+    },
+    setMcpForClaudeCode: async (payload: { enabled: boolean }) => {
+        await setClaudeCodeMcp(payload.enabled);
+        return getMcpIntegrationStatus();
+    },
+};
+
 export const initIpcActions = () =>
-    setupMainHandler({ ipcMain } as any, { ...settingsActions, ...appSettingsActions, ...trackItemActions }, true);
+    setupMainHandler({ ipcMain } as any, { ...settingsActions, ...appSettingsActions, ...trackItemActions, ...mcpActions }, true);

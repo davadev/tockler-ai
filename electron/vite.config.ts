@@ -53,6 +53,17 @@ export default defineConfig({
                     },
                 },
             },
+            {
+                // MCP server entry
+                entry: 'src/mcp-server.ts',
+                vite: {
+                    build: {
+                        rollupOptions: {
+                            external: [...builtinModules, 'better-sqlite3'],
+                        },
+                    },
+                },
+            },
         ]),
         renderer(),
         copyMigrations(),

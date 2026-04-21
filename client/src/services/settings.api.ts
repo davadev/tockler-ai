@@ -165,3 +165,26 @@ export async function fetchAnalyserSettings() {
         return [];
     }
 }
+
+// --- MCP Integration ---
+
+export async function getMcpIntegrationStatus() {
+    return ElectronEventEmitter.emit('getMcpIntegrationStatus') as Promise<{
+        opencode: { installed: boolean; enabled: boolean };
+        claudeCode: { installed: boolean; enabled: boolean };
+    }>;
+}
+
+export async function setMcpForOpencode(enabled: boolean) {
+    return ElectronEventEmitter.emit('setMcpForOpencode', { enabled }) as Promise<{
+        opencode: { installed: boolean; enabled: boolean };
+        claudeCode: { installed: boolean; enabled: boolean };
+    }>;
+}
+
+export async function setMcpForClaudeCode(enabled: boolean) {
+    return ElectronEventEmitter.emit('setMcpForClaudeCode', { enabled }) as Promise<{
+        opencode: { installed: boolean; enabled: boolean };
+        claudeCode: { installed: boolean; enabled: boolean };
+    }>;
+}
