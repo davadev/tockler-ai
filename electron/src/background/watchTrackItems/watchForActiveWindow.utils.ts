@@ -1,28 +1,11 @@
-import activeWin from 'active-win';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
 import { logManager } from '../../utils/log-manager';
 
+const execFileAsync = promisify(execFile);
 const logger = logManager.getLogger('checkActiveWindow');
 
 export const ACTIVE_WINDOW_CHECK_INTERVAL = 3;
-
-const errorWindowItem: activeWin.Result = {
-    platform: 'macos',
-    title: 'Active Window undefined',
-    owner: {
-        name: 'PERMISSION_ERROR',
-        processId: 0,
-        path: '',
-        bundleId: '',
-    },
-    id: 0,
-    bounds: {
-        x: 0,
-        y: 0,
-        width: 0,
-        height: 0,
-    },
-    memoryUsage: 0,
-};
 
 export interface NormalizedActiveWindow {
     app: string;
@@ -33,44 +16,38 @@ export interface NormalizedActiveWindow {
 const DEFAULT_TITLE = 'NO_TITLE';
 const DEFAULT_APP = 'NATIVE';
 
-export function normalizeActiveWindow(activeWindow: activeWin.Result) {
-    let item: NormalizedActiveWindow = {
-        app: DEFAULT_APP,
-        title: DEFAULT_TITLE,
-    };
+// Use AppleScript to get the active window info without triggering Accessibility permission prompts.
+const APPLESCRIPT = `
+tell application "System Events"
+    set frontApp to first application process whose frontmost is true
+    set appName to name of frontApp
+    set windowTitle to ""
+    try
+        set windowTitle to name of front window of frontApp
+    end try
+    return appName & "||" & windowTitle
+end tell
+`;
 
-    if (activeWindow.owner && activeWindow.owner.name) {
-        item.app = activeWindow.owner.name;
-    }
-
-    if (activeWindow.title) {
-        item.title = activeWindow.title.replace(/\n$/, '').replace(/^\s/, '');
-    }
-
-    if (activeWindow.platform === 'macos' && activeWindow.url) {
-        item.url = activeWindow.url;
-    }
-
-    return item;
-}
-
-async function getActiveWindow() {
+async function getActiveWindowViaAppleScript(): Promise<NormalizedActiveWindow> {
     try {
-        let activeWindow = await activeWin();
-        if (!activeWindow) {
-            logger.debug('No active window found');
-            activeWindow = errorWindowItem;
+        const { stdout } = await execFileAsync('osascript', ['-e', APPLESCRIPT], { timeout: 5000 });
+        const output = stdout.trim();
+        const separatorIndex = output.indexOf('||');
+        if (separatorIndex === -1) {
+            return { app: DEFAULT_APP, title: DEFAULT_TITLE };
         }
-        return activeWindow;
+        const app = output.substring(0, separatorIndex) || DEFAULT_APP;
+        const title = output.substring(separatorIndex + 2).replace(/\n$/, '').replace(/^\s/, '') || DEFAULT_TITLE;
+        return { app, title };
     } catch (error: any) {
-        logger.error('Error checking active window', error);
-        return errorWindowItem;
+        logger.error('Error getting active window via AppleScript', error);
+        return { app: 'PERMISSION_ERROR', title: 'Active Window undefined' };
     }
 }
 
-export async function normalizedActiveWindow() {
-    const activeWindow = await getActiveWindow();
-    return normalizeActiveWindow(activeWindow);
+export async function normalizedActiveWindow(): Promise<NormalizedActiveWindow> {
+    return getActiveWindowViaAppleScript();
 }
 
 export function areEqualActiveWindow(item1: NormalizedActiveWindow, item2: NormalizedActiveWindow) {

@@ -8,7 +8,6 @@ import { useTrayData } from '../hooks/useTrayData';
 import { useWindowFocused } from '../hooks/windowFocusedHook';
 import { Logger } from '../logger';
 import { startNewLogItem, stopRunningLogItem } from '../services/trackItem.api';
-import { sendOpenTrayEvent } from '../useGoogleAnalytics.utils';
 import { TrayItemEdit } from './tray/TrayItemEdit';
 
 const EMPTY_ARRAY = [];
@@ -22,7 +21,6 @@ const TrayAppPageTemp = () => {
         if (windowIsActive) {
             Logger.debug('Window active, refreshing data');
             refreshData();
-            sendOpenTrayEvent();
         }
         // Intentionally omitting refreshData from dependencies as it would cause a refresh loop
         // eslint-disable-next-line react-hooks/exhaustive-deps

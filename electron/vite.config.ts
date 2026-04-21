@@ -30,7 +30,7 @@ export default defineConfig({
                 vite: {
                     build: {
                         rollupOptions: {
-                            external: [...builtinModules, 'better-sqlite3', 'active-win'],
+                            external: [...builtinModules, 'better-sqlite3'],
                         },
                     },
                 },

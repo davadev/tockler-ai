@@ -1,5 +1,5 @@
 {
-    "name": "tockler",
+    "name": "tockler-ai",
     "productName": "Tockler",
     "version": "4.0.23",
     "description": "Tockler",
@@ -43,8 +43,7 @@
         "release": "electron-builder -c electron-builder.yml"
     },
     "dependencies": {
-        "@sentry/electron": "^2.5.4",
-        "active-win": "8.2.1",
+
         "better-sqlite3": "^11.8.1",
         "csv-stringify": "^6.2.0",
         "electron-context-menu": "4.0.5",

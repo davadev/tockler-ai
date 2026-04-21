@@ -5,9 +5,6 @@ import { HashRouter as Router } from 'react-router-dom';
 import { ErrorBoundary } from './components/ErrorBoundary/ErrorBoundary';
 import { MainRouter } from './MainRouter';
 import { theme } from './theme/theme';
-import { setAppParams } from './useGoogleAnalytics.utils';
-
-setAppParams();
 
 // Set CSP settings for the window
 // @ts-expect-error - CSPSettings is not defined on Window type

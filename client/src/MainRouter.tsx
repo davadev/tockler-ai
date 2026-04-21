@@ -13,12 +13,10 @@ import { NotificationAppPage } from './routes/NotificationAppPage';
 import { TrayAppPage } from './routes/TrayAppPage';
 import { ElectronEventEmitter } from './services/ElectronEventEmitter';
 import { mainStore } from './store/mainStore';
-import { useGoogleAnalytics } from './useGoogleAnalytics';
 
 Settings.defaultLocale = 'en-GB';
 
 export function MainRouter() {
-    useGoogleAnalytics();
     const { setColorMode } = useColorMode();
 
     const changeActiveTheme = useCallback(
