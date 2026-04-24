@@ -6,8 +6,8 @@ import { TrackItemType } from '../enums/track-item-type';
 
 // Shared schema for time range params
 const timeRangeSchema = {
-    from: z.string().describe('Start of time range (ISO 8601 datetime, e.g. "2025-01-15T00:00:00")'),
-    to: z.string().describe('End of time range (ISO 8601 datetime, e.g. "2025-01-15T23:59:59")'),
+    from: z.string().describe('Start of time range as ISO 8601 datetime (e.g. "2025-01-15T09:00:00"). For relative time queries like "last 3 hours" or "today", call get_current_time first to resolve the correct timestamp.'),
+    to: z.string().describe('End of time range as ISO 8601 datetime (e.g. "2025-01-15T23:59:59"). For relative time queries, call get_current_time first to resolve the correct timestamp.'),
 };
 
 function formatItem(item: { id: number | null; app: string; taskName: string | null; title: string | null; beginDate: number; endDate: number; color: string | null }) {
@@ -24,8 +24,33 @@ function formatItem(item: { id: number | null; app: string; taskName: string | n
 }
 
 export const tools = {
+    get_current_time: {
+        description: 'Get the current local date and time on the tracked computer. Always call this tool first when the user asks about relative time periods like "last 3 hours", "today", "yesterday", "this week", "since morning", etc. Returns the current ISO 8601 datetime and timezone information needed to construct accurate from/to parameters for other tools.',
+        inputSchema: z.object({}),
+        handler: async () => {
+            const now = new Date();
+            const offsetMin = now.getTimezoneOffset();
+            const offsetHours = Math.abs(Math.floor(offsetMin / 60));
+            const offsetMins = Math.abs(offsetMin % 60);
+            const sign = offsetMin <= 0 ? '+' : '-';
+            const timezone = `UTC${sign}${String(offsetHours).padStart(2, '0')}:${String(offsetMins).padStart(2, '0')}`;
+
+            return {
+                content: [{
+                    type: 'text' as const,
+                    text: JSON.stringify({
+                        currentTime: now.toISOString(),
+                        localTime: now.toLocaleString(),
+                        timezone,
+                        dayOfWeek: now.toLocaleDateString('en-US', { weekday: 'long' }),
+                    }, null, 2),
+                }],
+            };
+        },
+    },
+
     query_app_usage: {
-        description: 'Query application usage in a specific time range. Returns which apps were used, their window titles, and durations.',
+        description: 'Query application usage in a specific time range. Returns which apps were used, their window titles, and durations. Use this for questions like "what was I working on", "which apps did I use", "what did I do". For relative time queries, call get_current_time first.',
         inputSchema: z.object({
             ...timeRangeSchema,
             searchStr: z.string().optional().describe('Optional filter: search in app name or window title'),
@@ -63,7 +88,7 @@ export const tools = {
     },
 
     query_status_log: {
-        description: 'Query computer status (Online/Idle/Offline) in a specific time range. Shows when the computer was active, idle, or offline.',
+        description: 'Query computer status (Online/Idle/Offline) in a specific time range. Shows when the computer was active, idle, or offline. Use this for questions like "was I active", "how long was I idle", "when was I away". For relative time queries, call get_current_time first.',
         inputSchema: z.object(timeRangeSchema),
         handler: async (params: { from: string; to: string }) => {
             const fromMs = new Date(params.from).getTime();
@@ -97,7 +122,7 @@ export const tools = {
     },
 
     get_usage_summary: {
-        description: 'Get aggregated app usage summary for a time range. Returns total time per application, sorted by most used. Great for understanding how time was spent.',
+        description: 'Get aggregated app usage summary for a time range. Returns total time per application, sorted by most used. Prefer this over query_app_usage for summary/aggregate questions like "how did I spend my time", "what took most of my time". For relative time queries, call get_current_time first.',
         inputSchema: z.object(timeRangeSchema),
         handler: async (params: { from: string; to: string }) => {
             const fromMs = new Date(params.from).getTime();
@@ -140,7 +165,7 @@ export const tools = {
     },
 
     get_log_items: {
-        description: 'Query manual log entries (user-created time entries) in a specific time range.',
+        description: 'Query manual log entries (user-created time entries) in a specific time range. These are entries the user manually added, not automatically tracked app usage. For relative time queries, call get_current_time first.',
         inputSchema: z.object(timeRangeSchema),
         handler: async (params: { from: string; to: string }) => {
             const fromMs = new Date(params.from).getTime();
