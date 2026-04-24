@@ -3,6 +3,7 @@ import { and, asc, desc, eq, gte, like, lte, sql } from 'drizzle-orm';
 import { db } from './db';
 import { trackItems } from '../drizzle/schema';
 import { TrackItemType } from '../enums/track-item-type';
+import { getReportInstructions } from './resources';
 
 // Shared schema for time range params
 const timeRangeSchema = {
@@ -59,7 +60,7 @@ export const tools = {
     },
 
     query_app_usage: {
-        description: 'Query application usage in a specific time range. Returns which apps were used, their window titles, and durations. Use this for questions like "what was I working on", "which apps did I use", "what did I do". For relative time queries, call get_current_time first. When generating a report, read the tockler://report-instructions resource for the user\'s preferred formatting.',
+        description: 'Query application usage in a specific time range. Returns which apps were used, their window titles, and durations. Use this for questions like "what was I working on", "which apps did I use", "what did I do". For relative time queries, call get_current_time first.',
         inputSchema: z.object({
             ...timeRangeSchema,
             searchStr: z.string().optional().describe('Optional filter: search in app name or window title'),
@@ -84,14 +85,22 @@ export const tools = {
                 .where(and(...conditions))
                 .orderBy(asc(trackItems.beginDate));
 
+            const reportInstructions = await getReportInstructions();
+
             return {
-                content: [{
-                    type: 'text' as const,
-                    text: JSON.stringify({
-                        count: items.length,
-                        items: items.map(formatItem),
-                    }, null, 2),
-                }],
+                content: [
+                    {
+                        type: 'text' as const,
+                        text: JSON.stringify({
+                            count: items.length,
+                            items: items.map(formatItem),
+                        }, null, 2),
+                    },
+                    {
+                        type: 'text' as const,
+                        text: `\n[Report Instructions from user preferences]\n${reportInstructions}`,
+                    },
+                ],
             };
         },
     },
@@ -131,7 +140,7 @@ export const tools = {
     },
 
     get_usage_summary: {
-        description: 'Get aggregated app usage summary for a time range. Returns total time per application, sorted by most used. Prefer this over query_app_usage for summary/aggregate questions like "how did I spend my time", "what took most of my time". For relative time queries, call get_current_time first. When generating a report, read the tockler://report-instructions resource for the user\'s preferred formatting.',
+        description: 'Get aggregated app usage summary for a time range. Returns total time per application, sorted by most used. Prefer this over query_app_usage for summary/aggregate questions like "how did I spend my time", "what took most of my time". For relative time queries, call get_current_time first.',
         inputSchema: z.object(timeRangeSchema),
         handler: async (params: { from: string; to: string }) => {
             const fromMs = new Date(params.from).getTime();
@@ -154,21 +163,29 @@ export const tools = {
 
             const totalMs = items.reduce((sum, i) => sum + Number(i.totalDurationMs), 0);
 
+            const reportInstructions = await getReportInstructions();
+
             return {
-                content: [{
-                    type: 'text' as const,
-                    text: JSON.stringify({
-                        from: params.from,
-                        to: params.to,
-                        totalMinutes: Math.round(totalMs / 60000 * 10) / 10,
-                        apps: items.map(item => ({
-                            app: item.app,
-                            totalMinutes: Math.round(Number(item.totalDurationMs) / 60000 * 10) / 10,
-                            sessions: Number(item.count),
-                            percentOfTotal: totalMs > 0 ? Math.round(Number(item.totalDurationMs) / totalMs * 1000) / 10 : 0,
-                        })),
-                    }, null, 2),
-                }],
+                content: [
+                    {
+                        type: 'text' as const,
+                        text: JSON.stringify({
+                            from: params.from,
+                            to: params.to,
+                            totalMinutes: Math.round(totalMs / 60000 * 10) / 10,
+                            apps: items.map(item => ({
+                                app: item.app,
+                                totalMinutes: Math.round(Number(item.totalDurationMs) / 60000 * 10) / 10,
+                                sessions: Number(item.count),
+                                percentOfTotal: totalMs > 0 ? Math.round(Number(item.totalDurationMs) / totalMs * 1000) / 10 : 0,
+                            })),
+                        }, null, 2),
+                    },
+                    {
+                        type: 'text' as const,
+                        text: `\n[Report Instructions from user preferences]\n${reportInstructions}`,
+                    },
+                ],
             };
         },
     },
