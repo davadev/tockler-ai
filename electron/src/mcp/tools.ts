@@ -25,7 +25,7 @@ function formatItem(item: { id: number | null; app: string; taskName: string | n
 
 export const tools = {
     get_current_time: {
-        description: 'Get the current local date and time on the tracked computer. Always call this tool first when the user asks about relative time periods like "last 3 hours", "today", "yesterday", "this week", "since morning", etc. Returns the current ISO 8601 datetime and timezone information needed to construct accurate from/to parameters for other tools.',
+        description: 'Get the current local date and time on the tracked computer. Always call this tool first when the user asks about relative time periods like "last 3 hours", "today", "yesterday", "this week", "since morning", etc. Returns the current local ISO 8601 datetime with timezone offset. Use the localIso value as the basis for constructing from/to parameters for other tools.',
         inputSchema: z.object({}),
         handler: async () => {
             const now = new Date();
@@ -33,15 +33,24 @@ export const tools = {
             const offsetHours = Math.abs(Math.floor(offsetMin / 60));
             const offsetMins = Math.abs(offsetMin % 60);
             const sign = offsetMin <= 0 ? '+' : '-';
-            const timezone = `UTC${sign}${String(offsetHours).padStart(2, '0')}:${String(offsetMins).padStart(2, '0')}`;
+            const offsetStr = `${sign}${String(offsetHours).padStart(2, '0')}:${String(offsetMins).padStart(2, '0')}`;
+
+            // Build local ISO string with timezone offset (e.g. "2025-04-24T14:30:00+02:00")
+            const y = now.getFullYear();
+            const mo = String(now.getMonth() + 1).padStart(2, '0');
+            const d = String(now.getDate()).padStart(2, '0');
+            const h = String(now.getHours()).padStart(2, '0');
+            const mi = String(now.getMinutes()).padStart(2, '0');
+            const s = String(now.getSeconds()).padStart(2, '0');
+            const localIso = `${y}-${mo}-${d}T${h}:${mi}:${s}${offsetStr}`;
 
             return {
                 content: [{
                     type: 'text' as const,
                     text: JSON.stringify({
-                        currentTime: now.toISOString(),
-                        localTime: now.toLocaleString(),
-                        timezone,
+                        localIso,
+                        utcTime: now.toISOString(),
+                        timezone: `UTC${offsetStr}`,
                         dayOfWeek: now.toLocaleDateString('en-US', { weekday: 'long' }),
                     }, null, 2),
                 }],
