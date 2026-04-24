@@ -1,11 +1,14 @@
 import { eq } from 'drizzle-orm';
-import { db } from './db';
+import { db, refreshWalCheckpoint } from './db';
 import { settings } from '../drizzle/schema';
 
 const DEFAULT_REPORT_PROMPT = `When creating a report from Tockler data, consider both the application name and the window title to understand what the user was actually working on. For example, a browser with title "GitHub - Pull Request #42" should be categorized as development/code review, not just "browser usage". Group related activities into meaningful categories (e.g. Development, Communication, Research, Design) and provide time summaries per category. Highlight the top activities by time spent.`;
 
 export async function getReportInstructions(): Promise<string> {
     try {
+        // Ensure we see the latest writes from the main Tockler process
+        refreshWalCheckpoint();
+
         const rows = await db
             .select()
             .from(settings)

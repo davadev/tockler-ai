@@ -46,4 +46,15 @@ const sqlite = new Database(dbPath, { readonly: true });
 sqlite.pragma('journal_mode = WAL');
 sqlite.pragma('cache_size = -16000');
 
+export function refreshWalCheckpoint() {
+    // Force SQLite to see the latest WAL writes from the main Tockler process
+    // wal_checkpoint(PASSIVE) is safe for read-only connections
+    try {
+        sqlite.pragma('wal_checkpoint(PASSIVE)');
+    } catch {
+        // Ignore errors on read-only connections — the SELECT will still
+        // pick up committed changes via WAL read markers
+    }
+}
+
 export const db = drizzle(sqlite, { schema });

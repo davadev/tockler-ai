@@ -16,6 +16,7 @@ export const McpForm = () => {
     const [loading, setLoading] = useState(true);
     const [toggling, setToggling] = useState<'opencode' | 'claudeCode' | null>(null);
     const [reportPrompt, setReportPrompt] = useState('');
+    const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
     const promptInitialized = useRef(false);
 
     useEffect(() => {
@@ -47,8 +48,16 @@ export const McpForm = () => {
     }, []);
 
     const debouncedSavePrompt = useDebouncedCallback(
-        (value: string) => {
-            saveMcpSettings({ reportPrompt: value });
+        async (value: string) => {
+            setSaveStatus('saving');
+            try {
+                await saveMcpSettings({ reportPrompt: value });
+                setSaveStatus('saved');
+                setTimeout(() => setSaveStatus('idle'), 2000);
+            } catch (e) {
+                console.error('Failed to save MCP settings:', e);
+                setSaveStatus('idle');
+            }
         },
         1000,
         { leading: false, trailing: true },
@@ -58,6 +67,7 @@ export const McpForm = () => {
         (event: ChangeEvent<HTMLTextAreaElement>) => {
             const value = event.target.value;
             setReportPrompt(value);
+            setSaveStatus('idle');
             if (promptInitialized.current) {
                 debouncedSavePrompt(value);
             }
@@ -153,6 +163,12 @@ export const McpForm = () => {
                 <FormControl py={4}>
                     <FormLabel htmlFor="mcp-report-prompt">
                         Report Instructions
+                        {saveStatus === 'saving' && (
+                            <Text as="span" fontSize="xs" color="gray.400" ml={2}>Saving...</Text>
+                        )}
+                        {saveStatus === 'saved' && (
+                            <Text as="span" fontSize="xs" color="green.400" ml={2}>Saved</Text>
+                        )}
                     </FormLabel>
                     <Text fontSize="xs" color="gray.500" pb={2}>
                         Custom instructions for how the AI agent should interpret and format reports from your usage data.
