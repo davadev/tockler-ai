@@ -188,3 +188,11 @@ export async function setMcpForClaudeCode(enabled: boolean) {
         claudeCode: { installed: boolean; enabled: boolean };
     }>;
 }
+
+// --- Manual update check ---
+// Triggers an update check in the main process. The main process shows a
+// native confirmation dialog before making any network request, so no network
+// activity happens just from this function being called.
+export async function checkForUpdatesNow() {
+    return ElectronEventEmitter.emit('checkForUpdatesNow');
+}

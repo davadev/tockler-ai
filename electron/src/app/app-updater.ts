@@ -1,4 +1,4 @@
-import { app } from 'electron';
+import { app, dialog } from 'electron';
 import { autoUpdater, UpdateCheckResult, UpdateInfo } from 'electron-updater';
 import { config } from '../utils/config';
 import { showNotification } from './notification';
@@ -9,11 +9,6 @@ import { logManager } from '../utils/log-manager';
 import WindowManager from './window-manager';
 
 const logger = logManager.getLogger('AppUpdater');
-
-const ONE_MINUTE_MS = 60 * 1000;
-const ONE_HOUR_MS = 60 * ONE_MINUTE_MS;
-
-export const CHECK_INTERVAL_MS = ONE_HOUR_MS * 8;
 
 // Flag to track if update is in progress to prevent multiple checks/downloads
 let updateInProgress = false;
@@ -55,20 +50,32 @@ function isAutoUpdatableBuild() {
     return false;
 }
 
-export default class AppUpdater {
-    static dialogIsOpen = false;
+// Offline-first: online update checks are opt-in. Default is `false`, meaning
+// the app will never contact GitHub / the release server on its own.
+function isOnlineUpdateChecksAllowed(): boolean {
+    return config.persisted.get('isAutoUpdateEnabled') === true;
+}
 
-    static init() {
-        // Disable automatic downloads to prevent race conditions
+export default class AppUpdater {
+    private static listenersRegistered = false;
+
+    // Lazily register electron-updater event listeners. This is only called
+    // from within an explicit user-triggered check, so the listeners cannot
+    // cause network activity on startup.
+    private static ensureListenersRegistered() {
+        if (AppUpdater.listenersRegistered) {
+            return;
+        }
+        AppUpdater.listenersRegistered = true;
+
+        // Never auto-download — the user is prompted on `update-available`.
         autoUpdater.autoDownload = false;
         autoUpdater.logger = logger;
 
-        // Add additional configuration
         autoUpdater.allowDowngrade = false;
         autoUpdater.allowPrerelease = false;
         autoUpdater.forceDevUpdateConfig = false;
 
-        // Increase timeout for slow connections
         autoUpdater.requestHeaders = {
             'Cache-Control': 'no-cache',
         };
@@ -77,8 +84,35 @@ export default class AppUpdater {
             logger.debug('Checking for update...');
         });
 
-        autoUpdater.on('update-available', (info: UpdateInfo) => {
-            logger.debug(`Update ${info.version} available, starting download...`);
+        autoUpdater.on('update-available', async (info: UpdateInfo) => {
+            logger.debug(`Update ${info.version} available`);
+
+            if (updateInProgress) {
+                logger.debug('Update already in progress, not starting new download.');
+                return;
+            }
+
+            // Ask the user before downloading anything — no silent downloads.
+            const { response } = await dialog.showMessageBox({
+                type: 'question',
+                buttons: ['Download update', 'Cancel'],
+                defaultId: 1,
+                cancelId: 1,
+                title: 'Update available',
+                message: `Tockler ${info.version} is available.`,
+                detail:
+                    `You are running ${app.getVersion()}. ` +
+                    `Would you like to download this update from GitHub now? ` +
+                    `It will not be installed until you confirm.`,
+            });
+
+            if (response !== 0) {
+                logger.info('User declined to download update.');
+                return;
+            }
+
+            updateInProgress = true;
+            logger.info('User approved download — starting update download.');
 
             showNotification({
                 body: `Downloading Tockler version ${info.version}`,
@@ -86,23 +120,10 @@ export default class AppUpdater {
                 silent: true,
             });
 
-            if (!updateInProgress) {
-                updateInProgress = true;
-                logger.debug('Downloading update - initiating download process...');
-
-                // Try to download with allowPrerelease option
-                autoUpdater
-                    .downloadUpdate()
-                    .then(() => {
-                        logger.debug('Download initiated successfully');
-                    })
-                    .catch((err) => {
-                        updateInProgress = false;
-                        logger.error('Error downloading update:', err);
-                    });
-            } else {
-                logger.debug('Update already in progress, not starting new download.');
-            }
+            autoUpdater.downloadUpdate().catch((err) => {
+                updateInProgress = false;
+                logger.error('Error downloading update:', err);
+            });
         });
 
         autoUpdater.on('update-not-available', () => {
@@ -136,40 +157,45 @@ export default class AppUpdater {
                 body: e ? (e as Error).stack || '' : 'unknown',
             });
         });
-
-        setInterval(() => AppUpdater.checkForNewVersions(), CHECK_INTERVAL_MS);
     }
 
-    static checkForNewVersions() {
-        let isAutoUpdateEnabled = config.persisted.get('isAutoUpdateEnabled');
-        isAutoUpdateEnabled = typeof isAutoUpdateEnabled !== 'undefined' ? isAutoUpdateEnabled : true;
+    // Explicit user-triggered update check. No confirmation dialog — use
+    // `checkForUpdatesManualWithConfirmation` from user-facing entry points.
+    static async checkForUpdatesManual(): Promise<void> {
+        logger.info('Manual update check requested.');
 
-        const canAutoUpdate = isAutoUpdatableBuild();
-
-        if (!canAutoUpdate) {
-            logger.debug('Auto update not available for this build type.');
+        if (!isOnlineUpdateChecksAllowed()) {
+            // Offline-first no-op: this is the runtime guard that prevents
+            // any accidental network activity when the user has not opted in.
+            logger.info(
+                'Update check blocked: offline-first mode is active ' +
+                    '(`isAutoUpdateEnabled` setting is false). No network request made.',
+            );
+            showNotification({
+                title: 'Online update checks disabled',
+                body: 'Enable "Allow online update checks" in Settings → App, then try again.',
+                silent: true,
+            });
             return;
         }
 
-        if (isAutoUpdateEnabled && getCurrentState() === State.Online) {
-            logger.debug('Checking for updates.');
-            autoUpdater.checkForUpdates().catch((err) => {
-                logger.error('Error checking for updates:', err);
-            });
-        } else {
-            logger.debug('Auto update disabled.');
-        }
-    }
-
-    static async checkForUpdatesManual() {
-        logger.debug('Checking for updates manually');
-
-        const canAutoUpdate = isAutoUpdatableBuild();
-
-        if (!canAutoUpdate) {
+        if (!isAutoUpdatableBuild()) {
             showNotification({
-                body: `Auto updates are not available for this build type. Please check for updates manually at https://github.com/MayGo/tockler/releases.`,
+                body:
+                    `Auto updates are not available for this build type. ` +
+                    `Please download a signed release manually from ` +
+                    `https://github.com/davadev/tockler-ai/releases.`,
                 title: 'Updates unavailable',
+                silent: true,
+            });
+            return;
+        }
+
+        if (getCurrentState() !== State.Online) {
+            logger.info('Update check blocked: system is offline.');
+            showNotification({
+                title: 'Offline',
+                body: 'Cannot check for updates while offline.',
                 silent: true,
             });
             return;
@@ -183,6 +209,8 @@ export default class AppUpdater {
             });
             return;
         }
+
+        AppUpdater.ensureListenersRegistered();
 
         showNotification({ body: `Checking for updates...`, silent: true });
 
@@ -200,7 +228,8 @@ export default class AppUpdater {
                         silent: true,
                     });
                 }
-                // If there's an update, the update-available event will handle it
+                // If there's a newer version, the `update-available` event
+                // handler prompts the user before downloading.
             }
         } catch (e) {
             logger.error('Error checking updates', e);
@@ -209,5 +238,48 @@ export default class AppUpdater {
                 body: e ? (e as Error).stack || '' : 'unknown',
             });
         }
+    }
+
+    // Shows a native confirmation dialog explaining that this contacts GitHub,
+    // then delegates to `checkForUpdatesManual`. Use this from menu items and
+    // other user-facing entry points so the warning is always shown.
+    static async checkForUpdatesManualWithConfirmation(): Promise<void> {
+        if (!isOnlineUpdateChecksAllowed()) {
+            logger.info(
+                'Manual update check requested while offline-first mode is active — ' +
+                    'informing the user instead of proceeding.',
+            );
+            await dialog.showMessageBox({
+                type: 'info',
+                title: 'Online update checks disabled',
+                message: 'Tockler is running in offline-first mode.',
+                detail:
+                    'Update checks are disabled by default and no network request ' +
+                    'has been made. To check for updates, enable ' +
+                    '"Allow online update checks" in Settings → App and try again.',
+                buttons: ['OK'],
+            });
+            return;
+        }
+
+        const { response } = await dialog.showMessageBox({
+            type: 'question',
+            buttons: ['Check for updates', 'Cancel'],
+            defaultId: 1,
+            cancelId: 1,
+            title: 'Check for updates',
+            message: 'Check for Tockler updates now?',
+            detail:
+                'This will contact GitHub to look for a newer Tockler release. ' +
+                'No updates will be downloaded or installed without your explicit ' +
+                'confirmation.',
+        });
+
+        if (response !== 0) {
+            logger.info('User cancelled update check confirmation.');
+            return;
+        }
+
+        await AppUpdater.checkForUpdatesManual();
     }
 }

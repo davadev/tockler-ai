@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron';
 import { machineId } from 'node-machine-id';
 import AppManager from './app/app-manager';
+import AppUpdater from './app/app-updater';
 import { exportFile } from './app/exportFile';
 import { taskAnalyser } from './app/task-analyser';
 import { sendToNotificationWindow, sendToTrayWindow } from './app/window-manager';
@@ -123,6 +124,12 @@ const trackItemActions = {
     },
 };
 
+const updateActions = {
+    checkForUpdatesNow: async () => {
+        await AppUpdater.checkForUpdatesManualWithConfirmation();
+    },
+};
+
 const mcpActions = {
     getMcpIntegrationStatus: async () => {
         return getMcpIntegrationStatus();
@@ -138,4 +145,8 @@ const mcpActions = {
 };
 
 export const initIpcActions = () =>
-    setupMainHandler({ ipcMain } as any, { ...settingsActions, ...appSettingsActions, ...trackItemActions, ...mcpActions }, true);
+    setupMainHandler(
+        { ipcMain } as any,
+        { ...settingsActions, ...appSettingsActions, ...trackItemActions, ...updateActions, ...mcpActions },
+        true,
+    );

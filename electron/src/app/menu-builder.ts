@@ -91,7 +91,9 @@ export default class MenuBuilder {
         const CHECK_UPDATES_ITEM = {
             label: 'Check for Updates...',
             click() {
-                AppUpdater.checkForUpdatesManual();
+                // Shows a native confirmation dialog warning the user that this
+                // contacts GitHub before any network request is made.
+                AppUpdater.checkForUpdatesManualWithConfirmation();
             },
         };
 

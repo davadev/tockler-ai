@@ -3,7 +3,6 @@
 import { app, ipcMain } from 'electron';
 import contextMenu from 'electron-context-menu';
 import AppManager from './app/app-manager';
-import AppUpdater from './app/app-updater';
 import WindowManager from './app/window-manager';
 import { cleanupBackgroundJob, initBackgroundJob } from './background/initBackgroundJob';
 import { config } from './utils/config';
@@ -26,7 +25,9 @@ if (gotTheLock) {
         WindowManager.openMainWindow();
     });
 
-    AppUpdater.init();
+    // Offline-first: no update checks on startup. Updates are only initiated
+    // by explicit user action via the "Check for Updates..." menu item or the
+    // Settings UI, and only when the `isAutoUpdateEnabled` opt-in is true.
 
     // Enable GPU acceleration for smoother UI rendering and animations
     app.commandLine.appendSwitch('enable-hardware-acceleration');

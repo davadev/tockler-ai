@@ -1,7 +1,8 @@
-import { FormControl, FormLabel, Switch, Text } from '@chakra-ui/react';
-import { ChangeEvent } from 'react';
+import { Button, FormControl, FormLabel, Stack, Switch, Text } from '@chakra-ui/react';
+import { ChangeEvent, useState } from 'react';
 
 import {
+    checkForUpdatesNow,
     getIsAutoUpdateEnabled,
     getIsLoggingEnabled,
     getMacAutoHideMenuBarEnabled,
@@ -21,7 +22,11 @@ import { CardBox } from '../CardBox';
 export const AppForm = () => {
     const isNativeThemeEnabled = getNativeThemeChange();
     const openAtLogin = getOpenAtLogin();
-    const isAutoUpdateEnabled = getIsAutoUpdateEnabled();
+    // Offline-first default: undefined (never set) is treated as false here,
+    // matching the main-process gating in app-updater.ts.
+    const [allowOnlineUpdateChecks, setAllowOnlineUpdateChecks] = useState(
+        getIsAutoUpdateEnabled() === true,
+    );
     const isLoggingEnabled = getIsLoggingEnabled();
     const usePurpleTrayIcon = getUsePurpleTrayIcon();
     const macAutoHideMenuBarEnabled = getMacAutoHideMenuBarEnabled();
@@ -33,7 +38,14 @@ export const AppForm = () => {
     };
 
     const onChangeAutoUpdate = (event: ChangeEvent<HTMLInputElement>) => {
-        saveIsAutoUpdateEnabled(event.target.checked);
+        const checked = event.target.checked;
+        setAllowOnlineUpdateChecks(checked);
+        saveIsAutoUpdateEnabled(checked);
+    };
+    const onClickCheckForUpdates = () => {
+        // Main process shows a native confirmation dialog before any network
+        // request — this call on its own does not contact GitHub.
+        checkForUpdatesNow();
     };
     const onChangeLogging = (event: ChangeEvent<HTMLInputElement>) => {
         saveIsLoggingEnabled(event.target.checked);
@@ -81,11 +93,34 @@ export const AppForm = () => {
                 <Switch id="run-login" defaultChecked={openAtLogin} onChange={onChangeOpenAtLogin} size="lg" />
             </FormControl>
             <FormControl display="flex" alignItems="center" py={2}>
-                <FormLabel htmlFor="auto-update" mb="0" flex="1">
-                    Auto update?
+                <FormLabel htmlFor="allow-online-update-checks" mb="0" flex="1">
+                    Allow online update checks?
                 </FormLabel>
-                <Switch id="auto-update" defaultChecked={isAutoUpdateEnabled} onChange={onChangeAutoUpdate} size="lg" />
+                <Switch
+                    id="allow-online-update-checks"
+                    isChecked={allowOnlineUpdateChecks}
+                    onChange={onChangeAutoUpdate}
+                    size="lg"
+                />
             </FormControl>
+            <Text fontSize="xs" color="gray.500" pt={1}>
+                Off by default. When disabled, Tockler never contacts the release server. When enabled, you can use
+                the button below to manually check for a new version.
+            </Text>
+            <Stack direction="row" pt={2} pb={2}>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={onClickCheckForUpdates}
+                    isDisabled={!allowOnlineUpdateChecks}
+                >
+                    Check for updates now
+                </Button>
+            </Stack>
+            <Text fontSize="xs" color="gray.500" pb={2}>
+                Clicking this contacts GitHub to look for a newer Tockler release. You will be prompted before any
+                update is downloaded or installed.
+            </Text>
 
             <FormControl display="flex" alignItems="center" py={2}>
                 <FormLabel htmlFor="enable-purple-tray" mb="0" flex="1">
