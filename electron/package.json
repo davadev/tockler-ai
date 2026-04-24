@@ -8,7 +8,7 @@
     "main": "dist-electron/index.js",
     "repository": {
         "type": "git",
-        "url": "git@github.com:MayGo/tockler.git"
+        "url": "git@github.com:davadev/tockler-ai.git"
     },
     "pnpm": {
         "supportedArchitectures": {

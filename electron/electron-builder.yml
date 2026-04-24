@@ -15,7 +15,9 @@ files:
     - 'shared/**/*'
 
 publish:
-    - github
+    - provider: github
+      owner: davadev
+      repo: tockler-ai
 
 mac:
     category: public.app-category.productivity
