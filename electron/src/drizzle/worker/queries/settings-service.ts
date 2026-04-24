@@ -19,6 +19,12 @@ const defaultWorkSettings = {
 
 const RUNNING_LOG_ITEM = 'RUNNING_LOG_ITEM';
 const ANALYSER_ENABLED = 'ANALYSER_ENABLED';
+const MCP_SETTINGS = 'MCP_SETTINGS';
+
+const defaultMcpSettings = {
+    reportPrompt: `When creating a report from Tockler data, consider both the application name and the window title to understand what the user was actually working on. For example, a browser with title "GitHub - Pull Request #42" should be categorized as development/code review, not just "browser usage". Group related activities into meaningful categories (e.g. Development, Communication, Research, Design) and provide time summaries per category. Highlight the top activities by time spent.`,
+};
+
 const logger = console;
 
 const cache: Record<string, Setting | null> = {};
@@ -205,6 +211,26 @@ async function saveRunningLogItemReference(newTrackItem: NewTrackItem | null) {
     return updateByName(RUNNING_LOG_ITEM, JSON.stringify(newTrackItem));
 }
 
+async function fetchMcpSettings() {
+    let item = await findByName(MCP_SETTINGS);
+    if (!item || !item.jsonData) {
+        return defaultMcpSettings;
+    }
+
+    try {
+        const dbSettings = JSON.parse(item.jsonData);
+        return { ...defaultMcpSettings, ...dbSettings };
+    } catch (e) {
+        logger.error('Error parsing MCP settings:', e);
+        return defaultMcpSettings;
+    }
+}
+
+async function fetchMcpSettingsJsonString() {
+    let jsonData = await fetchMcpSettings();
+    return JSON.stringify(jsonData);
+}
+
 export const settingsService = {
     findCreateFind,
     findByName,
@@ -220,6 +246,8 @@ export const settingsService = {
     setAnalyserEnabled,
     getRunningLogItemAsJson,
     saveRunningLogItemReference,
+    fetchMcpSettings,
+    fetchMcpSettingsJsonString,
 };
 
 export type SettingsService = typeof settingsService;

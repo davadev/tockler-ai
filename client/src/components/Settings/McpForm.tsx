@@ -1,6 +1,7 @@
-import { FormControl, FormLabel, Spinner, Switch, Text, VStack } from '@chakra-ui/react';
-import { ChangeEvent, useCallback, useEffect, useState } from 'react';
-import { getMcpIntegrationStatus, setMcpForClaudeCode, setMcpForOpencode } from '../../services/settings.api';
+import { FormControl, FormLabel, Spinner, Switch, Text, Textarea, VStack } from '@chakra-ui/react';
+import { ChangeEvent, useCallback, useEffect, useRef, useState } from 'react';
+import { useDebouncedCallback } from 'use-debounce';
+import { fetchMcpSettings, getMcpIntegrationStatus, saveMcpSettings, setMcpForClaudeCode, setMcpForOpencode } from '../../services/settings.api';
 import { CardBox } from '../CardBox';
 
 interface McpStatus {
@@ -8,16 +9,47 @@ interface McpStatus {
     claudeCode: { installed: boolean; enabled: boolean };
 }
 
+const DEFAULT_REPORT_PROMPT = `When creating a report from Tockler data, consider both the application name and the window title to understand what the user was actually working on. For example, a browser with title "GitHub - Pull Request #42" should be categorized as development/code review, not just "browser usage". Group related activities into meaningful categories (e.g. Development, Communication, Research, Design) and provide time summaries per category. Highlight the top activities by time spent.`;
+
 export const McpForm = () => {
     const [status, setStatus] = useState<McpStatus | null>(null);
     const [loading, setLoading] = useState(true);
     const [toggling, setToggling] = useState<'opencode' | 'claudeCode' | null>(null);
+    const [reportPrompt, setReportPrompt] = useState('');
+    const promptInitialized = useRef(false);
 
     useEffect(() => {
-        getMcpIntegrationStatus()
-            .then(setStatus)
+        Promise.all([getMcpIntegrationStatus(), fetchMcpSettings()])
+            .then(([mcpStatus, mcpSettings]) => {
+                setStatus(mcpStatus);
+                if (mcpSettings?.reportPrompt != null) {
+                    setReportPrompt(mcpSettings.reportPrompt);
+                } else {
+                    setReportPrompt(DEFAULT_REPORT_PROMPT);
+                }
+                promptInitialized.current = true;
+            })
             .finally(() => setLoading(false));
     }, []);
+
+    const debouncedSavePrompt = useDebouncedCallback(
+        (value: string) => {
+            saveMcpSettings({ reportPrompt: value });
+        },
+        1000,
+        { leading: false, trailing: true },
+    );
+
+    const onPromptChange = useCallback(
+        (event: ChangeEvent<HTMLTextAreaElement>) => {
+            const value = event.target.value;
+            setReportPrompt(value);
+            if (promptInitialized.current) {
+                debouncedSavePrompt(value);
+            }
+        },
+        [debouncedSavePrompt],
+    );
 
     const onToggleOpencode = useCallback(
         async (event: ChangeEvent<HTMLInputElement>) => {
@@ -102,6 +134,24 @@ export const McpForm = () => {
                             size="lg"
                         />
                     )}
+                </FormControl>
+
+                <FormControl py={4}>
+                    <FormLabel htmlFor="mcp-report-prompt">
+                        Report Instructions
+                    </FormLabel>
+                    <Text fontSize="xs" color="gray.500" pb={2}>
+                        Custom instructions for how the AI agent should interpret and format reports from your usage data.
+                        This is served as an MCP resource that the agent reads before generating reports.
+                    </Text>
+                    <Textarea
+                        id="mcp-report-prompt"
+                        value={reportPrompt}
+                        onChange={onPromptChange}
+                        placeholder={DEFAULT_REPORT_PROMPT}
+                        rows={6}
+                        fontSize="sm"
+                    />
                 </FormControl>
             </VStack>
         </CardBox>

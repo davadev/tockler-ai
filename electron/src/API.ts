@@ -142,6 +142,12 @@ const mcpActions = {
         await setClaudeCodeMcp(payload.enabled);
         return getMcpIntegrationStatus();
     },
+    fetchMcpSettingsJsonString: async () => {
+        return dbClient.fetchMcpSettingsJsonString();
+    },
+    saveMcpSettings: async (payload: { jsonData: string }) => {
+        return dbClient.updateByName('MCP_SETTINGS', payload.jsonData);
+    },
 };
 
 export const initIpcActions = () =>

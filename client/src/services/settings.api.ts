@@ -189,6 +189,20 @@ export async function setMcpForClaudeCode(enabled: boolean) {
     }>;
 }
 
+export async function fetchMcpSettings() {
+    const jsonStr = await ElectronEventEmitter.emit('fetchMcpSettingsJsonString');
+    try {
+        return JSON.parse(jsonStr as string);
+    } catch (e) {
+        Logger.error('Error in fetchMcpSettings', jsonStr, e);
+        return null;
+    }
+}
+
+export async function saveMcpSettings(data: { reportPrompt: string }) {
+    return ElectronEventEmitter.emit('saveMcpSettings', { jsonData: JSON.stringify(data) });
+}
+
 // --- Manual update check ---
 // Triggers an update check in the main process. The main process shows a
 // native confirmation dialog before making any network request, so no network

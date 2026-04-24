@@ -50,7 +50,7 @@ export const tools = {
     },
 
     query_app_usage: {
-        description: 'Query application usage in a specific time range. Returns which apps were used, their window titles, and durations. Use this for questions like "what was I working on", "which apps did I use", "what did I do". For relative time queries, call get_current_time first.',
+        description: 'Query application usage in a specific time range. Returns which apps were used, their window titles, and durations. Use this for questions like "what was I working on", "which apps did I use", "what did I do". For relative time queries, call get_current_time first. When generating a report, read the tockler://report-instructions resource for the user\'s preferred formatting.',
         inputSchema: z.object({
             ...timeRangeSchema,
             searchStr: z.string().optional().describe('Optional filter: search in app name or window title'),
@@ -122,7 +122,7 @@ export const tools = {
     },
 
     get_usage_summary: {
-        description: 'Get aggregated app usage summary for a time range. Returns total time per application, sorted by most used. Prefer this over query_app_usage for summary/aggregate questions like "how did I spend my time", "what took most of my time". For relative time queries, call get_current_time first.',
+        description: 'Get aggregated app usage summary for a time range. Returns total time per application, sorted by most used. Prefer this over query_app_usage for summary/aggregate questions like "how did I spend my time", "what took most of my time". For relative time queries, call get_current_time first. When generating a report, read the tockler://report-instructions resource for the user\'s preferred formatting.',
         inputSchema: z.object(timeRangeSchema),
         handler: async (params: { from: string; to: string }) => {
             const fromMs = new Date(params.from).getTime();
