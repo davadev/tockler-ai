@@ -60,7 +60,7 @@ export const tools = {
     },
 
     query_app_usage: {
-        description: 'Query application usage in a specific time range. Returns which apps were used, their window titles, and durations. Use this for questions like "what was I working on", "which apps did I use", "what did I do". For relative time queries, call get_current_time first.',
+        description: 'Query application usage in a specific time range. Returns apps and window titles with aggregated durations, grouped by app and title. Use this for questions like "what was I working on", "which apps did I use", "what did I do". For relative time queries, call get_current_time first.',
         inputSchema: z.object({
             ...timeRangeSchema,
             searchStr: z.string().optional().describe('Optional filter: search in app name or window title'),
@@ -85,6 +85,30 @@ export const tools = {
                 .where(and(...conditions))
                 .orderBy(asc(trackItems.beginDate));
 
+            // Aggregate by app + title to reduce response size
+            const grouped = new Map<string, { app: string; title: string | null; totalMs: number; sessions: number }>();
+            for (const item of items) {
+                const key = `${item.app}|||${item.title ?? ''}`;
+                const existing = grouped.get(key);
+                const durationMs = item.endDate - item.beginDate;
+                if (existing) {
+                    existing.totalMs += durationMs;
+                    existing.sessions += 1;
+                } else {
+                    grouped.set(key, { app: item.app, title: item.title, totalMs: durationMs, sessions: 1 });
+                }
+            }
+
+            // Sort by total time descending
+            const aggregated = Array.from(grouped.values())
+                .sort((a, b) => b.totalMs - a.totalMs)
+                .map(g => ({
+                    app: g.app,
+                    title: g.title,
+                    totalMinutes: Math.round(g.totalMs / 60000 * 10) / 10,
+                    sessions: g.sessions,
+                }));
+
             const reportInstructions = await getReportInstructions();
 
             return {
@@ -92,8 +116,11 @@ export const tools = {
                     {
                         type: 'text' as const,
                         text: JSON.stringify({
-                            count: items.length,
-                            items: items.map(formatItem),
+                            from: params.from,
+                            to: params.to,
+                            totalRawEvents: items.length,
+                            uniqueAppTitleCombinations: aggregated.length,
+                            items: aggregated,
                         }, null, 2),
                     },
                     {
