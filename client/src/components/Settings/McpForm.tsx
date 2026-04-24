@@ -19,17 +19,31 @@ export const McpForm = () => {
     const promptInitialized = useRef(false);
 
     useEffect(() => {
-        Promise.all([getMcpIntegrationStatus(), fetchMcpSettings()])
-            .then(([mcpStatus, mcpSettings]) => {
+        const loadData = async () => {
+            try {
+                const mcpStatus = await getMcpIntegrationStatus();
                 setStatus(mcpStatus);
+            } catch (e) {
+                console.error('Failed to load MCP integration status:', e);
+            }
+
+            try {
+                const mcpSettings = await fetchMcpSettings();
                 if (mcpSettings?.reportPrompt != null) {
                     setReportPrompt(mcpSettings.reportPrompt);
                 } else {
                     setReportPrompt(DEFAULT_REPORT_PROMPT);
                 }
-                promptInitialized.current = true;
-            })
-            .finally(() => setLoading(false));
+            } catch (e) {
+                console.error('Failed to load MCP settings:', e);
+                setReportPrompt(DEFAULT_REPORT_PROMPT);
+            }
+
+            promptInitialized.current = true;
+            setLoading(false);
+        };
+
+        loadData();
     }, []);
 
     const debouncedSavePrompt = useDebouncedCallback(
