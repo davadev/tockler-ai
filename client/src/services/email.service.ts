@@ -4,7 +4,18 @@ const USER_ID = import.meta.env.VITE_USER_ID || '';
 
 const EMAILJS_API = 'https://api.emailjs.com/api/v1.0/email/send';
 
-export const sendEmail = (templateParams) => {
+export const sendEmail = async (templateParams) => {
+    // Offline-first guard: only allow sending when the user has opted in to
+    // online features. This prevents any network request to EmailJS unless
+    // the `isAutoUpdateEnabled` (aka "Allow online update checks") setting
+    // is explicitly enabled.
+    const { getIsAutoUpdateEnabled } = await import('./settings.api');
+    if (!getIsAutoUpdateEnabled()) {
+        throw new Error(
+            'Online features are disabled. Enable "Allow online update checks" in Settings → App to send feedback.',
+        );
+    }
+
     const data = {
         service_id: SERVICE_ID,
         template_id: TEMPLATE_ID,
