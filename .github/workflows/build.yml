@@ -12,8 +12,8 @@ concurrency:
     cancel-in-progress: true
 
 jobs:
-    sonarcloud:
-        name: SonarCloud
+    test:
+        name: Test
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
@@ -55,25 +55,9 @@ jobs:
                   pnpm coverage
                   cd ..
 
-            - name: SonarCloud Scan Electron
-              uses: SonarSource/sonarcloud-github-action@master
-              with:
-                  projectBaseDir: electron
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-                  SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-
-            - name: SonarCloud Scan Client
-              uses: SonarSource/sonarcloud-github-action@master
-              with:
-                  projectBaseDir: client
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-                  SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-
     build:
         name: Build (${{ matrix.os }}-${{ matrix.arch }})
-        needs: [sonarcloud]
+        needs: [test]
         runs-on: ${{ matrix.os }}
         timeout-minutes: 60 # Set maximum job runtime
         strategy:
@@ -105,20 +89,6 @@ jobs:
               with:
                   version: 9
                   run_install: false
-
-            - name: Get Package Version
-              id: package_version
-              shell: bash
-              run: echo "PACKAGE_VERSION=$(node -p -e "require('./electron/package.json').version")" >> $GITHUB_ENV
-
-            - name: Setup Sentry Release
-              if: matrix.os == 'ubuntu-latest'
-              env:
-                  SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-                  SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
-              run: |
-                  pnpm dlx @sentry/cli releases set-commits "${{ env.PACKAGE_VERSION }}" --commit "${{ github.repository }}@${{ github.sha }}"
-                  pnpm dlx @sentry/cli releases new "${{ env.PACKAGE_VERSION }}"
 
             - name: Install Python Setuptools on Ubuntu
               if: matrix.os == 'ubuntu-latest'
@@ -174,20 +144,9 @@ jobs:
                   cd ..
 
             - name: Build Client
-              env:
-                  VITE_TEMPLATE_ID: ${{ secrets.VITE_TEMPLATE_ID }}
-                  VITE_SERVICE_ID: ${{ secrets.VITE_SERVICE_ID }}
-                  VITE_USER_ID: ${{ secrets.VITE_USER_ID }}
               run: |
                   cd client
                   pnpm build
-                  cd ..
-
-            - name: Create .env file
-              shell: bash
-              run: |
-                  cd electron
-                  echo "SENTRY_DSN=${{ secrets.SENTRY_DSN }}" >> .env
                   cd ..
 
             - name: Build and Release Electron App
@@ -215,16 +174,6 @@ jobs:
                     pnpm release -- --linux
                   fi
                   cd ..
-
-            - name: Upload Sentry Sourcemaps
-              if: matrix.os == 'ubuntu-latest'
-              env:
-                  SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-                  SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
-              run: |
-                  pnpm dlx @sentry/cli releases files "${{ env.PACKAGE_VERSION }}" upload-sourcemaps ./client/dist/assets/ --rewrite --url-prefix "~/dist/assets"
-                  pnpm dlx @sentry/cli releases files "${{ env.PACKAGE_VERSION }}" list
-                  pnpm dlx @sentry/cli releases finalize "${{ env.PACKAGE_VERSION }}"
 
             - name: Upload Artifacts
               uses: actions/upload-artifact@v4
